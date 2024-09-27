@@ -23,17 +23,15 @@ import spotipy
 class MP3SpotifyUtils(Utils):
     """    Various MP3 utils    """
     def __init__(self):
-        """env can be full project, or env prefix (e.g. mcpn1)"""
         Utils.__init__(self)
 
         self.username = os.environ['SPOTIPY_USERNAME']
         
-        #self.sp = spotipy.Spotify(client_credentials_manager=SpotifyClientCredentials())
-
+        scope = ['user-library-read', 'playlist-modify-public', 'playlist-modify-public']
         self.sp = spotipy.Spotify(auth_manager=SpotifyOAuth(client_id=os.environ['SPOTIPY_CLIENT_ID'],
                                                client_secret=os.environ['SPOTIPY_CLIENT_SECRET'],
                                                redirect_uri=os.environ.get('SPOTIPY_REDIRECT_URI', 'http://127.0.0.1:8888/callback'),
-                                               scope=['user-library-read'],
+                                               scope=scope,
                                                open_browser=False))
 
 
@@ -157,6 +155,11 @@ class MP3SpotifyUtils(Utils):
             uri = track['uri']
             
             print(f"{artist}~{track_name}~{duration}~{uri}")
+
+    def add_to_playlist(self, playlist_id, track_id):
+        """ add track to playlist"""
+        
+        self.sp.playlist_add_items(playlist_id, [track_id])
 
 
 if __name__ == '__main__':
