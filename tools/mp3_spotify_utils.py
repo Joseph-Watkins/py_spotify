@@ -32,7 +32,7 @@ class MP3SpotifyUtils(Utils):
                                                client_secret=os.environ['SPOTIPY_CLIENT_SECRET'],
                                                redirect_uri=os.environ.get('SPOTIPY_REDIRECT_URI', 'http://127.0.0.1:8888/callback'),
                                                scope=['user-library-read'],
-                                               open_browser=True))
+                                               open_browser=False))
 
 
     def mp3_to_spotify(self, mp3_path, duration_tolerance=5):
