@@ -9,6 +9,8 @@ import json
 import os
 import sys
 import time
+import traceback
+
 
 from utils import Utils
 
@@ -40,35 +42,47 @@ class MP3SpotifyUtils(Utils):
 
         duration_tolerance = int(duration_tolerance) if duration_tolerance else 5
 
-        print("artist~track~mp3_duration~spotify_duration~uri")
-        for file in glob.glob(os.path.join(mp3_path,'*.mp3') ):
-            data = self.get_mp3_data(file)
+        output_file = os.path.join(mp3_path, "spotify.txt")
+        with open(output_file, "w") as f:
+            f.write("artist~track~mp3_duration~spotify_duration~uri~file\n")
+            for file in glob.glob(os.path.join(mp3_path,'*.mp3') ):
+                print(f"Processing {file}")
+                data = self.get_mp3_data(file)
+                if data:
+                    # remove words with ' in them
+                    mp3_track = " ".join([m for m in data["mp3_track"].split() if "'" not in m])
 
-            # remove words with ' in them
-            mp3_track = " ".join([m for m in data["mp3_track"].split() if "'" not in m])
+                    # search in spotify
+                    # need highest popularity track with specified duration tolerance
+                    results = self.spotify_search(data["mp3_artist"], mp3_track, 
+                                                  True, duration_tolerance, data["mp3_duration"])
+                    if results:
+                        duration = results[0]['sp_duration']
+                        uri = results[0]['sp_uri']
+                    else:
+                        duration = ""
+                        uri = "NOT FOUND"
 
-            # search in spotify
-            # need highest popularity track with specified duration tolerance
-            results = self.spotify_search(data["mp3_artist"], mp3_track, 
-                                          True, duration_tolerance, data["mp3_duration"])
-            if results:
-                duration = results[0]['sp_duration']
-                uri = results[0]['sp_uri']
-            else:
-                duration = ""
-                uri = "NOT FOUND"
-
-            print("{0}~{1}~{2}~{3}~{4}".format(data["mp3_artist"], data["mp3_track"],
-                                               data["mp3_duration"], duration, uri))
+                    f.write(f"{data['mp3_artist']}~{data['mp3_track']}~{data['mp3_duration']}~{duration}~{uri}~{file}\n")
+                else:
+                    f.write(f"NOT FOUND~~~~~{file}\n")
+        print(f"Data written to {output_file}")
 
     def get_mp3_data(self, mp3_file):
         """return data for an mp3 file (artist, track, duration in secs) """
 
         audio = MP3(mp3_file)
-        return {"mp3_artist": audio['TPE1'].text[0], 
+        try:
+            mp3_data = {
+                "mp3_artist": audio['TPE1'].text[0], 
                 "mp3_track": audio["TIT2"].text[0], 
                 "mp3_duration": round(audio.info.length)
-               }
+            }
+        except:
+            mp3_data = None
+
+        return mp3_data
+        
 
     def spotify_search(self, artist, track, most_popular=True, duration_tolerance=0, duration=0):
         """return most popular or all match(es) from spotify for artist and track and optionaly check duration_tolerance (as %) given duration"""
