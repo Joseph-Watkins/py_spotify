@@ -37,7 +37,7 @@ class MP3SpotifyUtils(Utils):
         self.mp3_utils = Mp3Utils()
 
 
-    def mp3_to_spotify(self, mp3_path, duration_tolerance=5):
+    def mp3_to_spotify(self, mp3_path, duration_tolerance=50):
         """pass path containing mp3 files to find spotify ids for, and optional duration tolerance as % (default 5)"""
 
         duration_tolerance = int(duration_tolerance) if duration_tolerance else 5
@@ -52,18 +52,18 @@ class MP3SpotifyUtils(Utils):
 
                 # search in spotify
                 # need highest popularity track with specified duration tolerance
+                print(f"processing {data['file']}")
                 result = self.spotify_search(data["artist"], title, 
                                               True, duration_tolerance, data["duration"])
                 if result:
-                    print(f"result={result}")
-                    duration = result['sp_duration']
-                    id = result['sp_id']
-                    id2 = result['sp_id2']
+                    duration = result['duration']
+                    sp_id = result['id']
+                    sp_id2 = result['id2']
                     score = result['score']
                 else:
-                    duration = uri = id2 = score = "UNK"
+                    duration = sp_id = sp_id2 = score = "UNK"
 
-                f.write(f"{data['artist']}~{data['title']}~{data['duration']}~{duration}~{id}~{id2}~{score}~{data['file']}~{data['dir']}\n")
+                f.write(f"{data['artist']}~{data['title']}~{data['duration']}~{duration}~{sp_id}~{sp_id2}~{score}~{data['file']}~{data['dir']}\n")
         print(f"Data written to {output_file}")
 
 
@@ -80,27 +80,27 @@ class MP3SpotifyUtils(Utils):
         return_result = {}
         for item in result['tracks']['items']:
             sp_duration = round(item['duration_ms']/1000)
-            item_data = {"sp_artist": item['album']['artists'][0]['name'],
-                         "sp_album": item['album']['name'],
-                         "sp_track": item['name'],
-                         "sp_popularity": item['popularity'],
-                         "sp_id": item['id'],
-                         "sp_duration": sp_duration
+            item_data = {"artist": item['album']['artists'][0]['name'],
+                         "album": item['album']['name'],
+                         "track": item['name'],
+                         "popularity": item['popularity'],
+                         "id": item['id'],
+                         "duration": sp_duration
                         }
-            if duration_tolerance and (abs(duration - sp_duration) / duration > duration_tolerance):
-                continue
+            #if duration_tolerance and (abs(duration - sp_duration) / duration > duration_tolerance):
+            #    continue
             if most_popular and (item['popularity'] < max_popularity):
                 continue
             max_popularity = item['popularity']
             return_result = item_data
 
-        if result:
+        if result['tracks']['items']:
             match_data = self.matching(title, artist, duration, result)
             if match_data:
-                return_result['sp_id2'] = match_data['match_id']
+                return_result['id2'] = match_data['match_id']
                 return_result['score'] = match_data['score']
             else:
-                return_result['sp_id2'] = return_result['score'] = "UNK"
+                return_result['id2'] = return_result['score'] = "UNK"
         
         return return_result
         
