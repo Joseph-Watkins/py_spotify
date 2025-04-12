@@ -4,6 +4,11 @@ import os
 import logging
 from math import ceil
 
+import smtplib
+from email.message import EmailMessage
+import datetime # To add timestamp to email subject
+
+
 # --- Configuration ---
 # Make sure SPOTIPY_CLIENT_ID, SPOTIPY_CLIENT_SECRET, and SPOTIPY_REDIRECT_URI
 # are set as environment variables.
@@ -24,7 +29,7 @@ API_LIMIT = 100
 # --- Logging Setup ---
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s',
-                    handlers=[logging.StreamHandler(), logging.FileHandler("spotify_sync.log")])
+                    handlers=[logging.StreamHandler(), logging.FileHandler("spotify_liked_sync.log")])
 
 # --- Helper Functions ---
 
@@ -195,7 +200,58 @@ def remove_tracks_from_playlist(sp, playlist_id, track_uris_to_remove, track_det
                  failed_details_log.append(f"{details['name']} by {details['artists']} ({uri})")
             logging.error(f"  Failed chunk details:\n  " + "\n  ".join(failed_details_log))
 
+            
+def format_email_body(added_uris, removed_uris, details_lookup):
+    """Formats the email body with lists of added and removed tracks."""
+    body = "Spotify Liked Songs Sync Results:\n\n"
 
+    if added_uris:
+        body += f"--- Added Tracks ({len(added_uris)}) ---\n"
+        for uri in added_uris:
+            details = details_lookup.get(uri, {'name': 'N/A', 'artists': 'N/A'})
+            body += f"- {details['name']} by {details['artists']}\n" # ({uri})\n" # Optionally include URI
+        body += "\n"
+    else:
+        body += "--- No Tracks Added ---\n\n"
+
+    if removed_uris:
+        body += f"--- Removed Tracks ({len(removed_uris)}) ---\n"
+        for uri in removed_uris:
+            details = details_lookup.get(uri, {'name': 'N/A', 'artists': 'N/A'})
+            body += f"- {details['name']} by {details['artists']}\n" # ({uri})\n" # Optionally include URI
+        body += "\n"
+    else:
+        body += "--- No Tracks Removed ---\n\n"
+
+    return body
+
+def send_gmail(subject, body, sender, password, recipient):
+    """Sends an email using Gmail SMTP."""
+    if not all([sender, password, recipient]):
+        logging.warning("Email configuration incomplete. Skipping email notification.")
+        return
+
+    msg = EmailMessage()
+    msg.set_content(body)
+    msg['Subject'] = subject
+    msg['From'] = sender
+    msg['To'] = recipient
+
+    try:
+        logging.info(f"Attempting to send email notification to {recipient}...")
+        # Connect to Gmail SMTP server
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()  # Secure the connection
+        server.login(sender, password)
+        server.send_message(msg)
+        server.quit()
+        logging.info("Email notification sent successfully.")
+    except smtplib.SMTPAuthenticationError:
+        logging.error("Email SMTP Authentication Error. Check sender email/App Password.")
+    except Exception as e:
+        logging.error(f"Failed to send email: {e}")            
+
+        
 # --- Main Execution ---
 if __name__ == "__main__":
     logging.info("Starting Spotify Liked Songs Sync...")
@@ -203,6 +259,14 @@ if __name__ == "__main__":
     if TARGET_PLAYLIST_ID == 'YOUR_TARGET_PLAYLIST_ID':
         logging.error("Please update the TARGET_PLAYLIST_ID variable in the script.")
         exit()
+
+    # --- Retrieve Email Config ---
+    sender_email = os.environ.get('GMAIL_SENDER_EMAIL')
+    sender_password = os.environ.get('GMAIL_SENDER_APP_PASSWORD')
+    recipient_email = os.environ.get('GMAIL_RECIPIENT_EMAIL')
+    email_configured = all([sender_email, sender_password, recipient_email])
+    if not email_configured:
+         logging.warning("Email environment variables (GMAIL_SENDER_EMAIL, GMAIL_SENDER_APP_PASSWORD, GMAIL_RECIPIENT_EMAIL) not fully set. Email notifications will be disabled.")
 
     try:
         # Authenticate
@@ -227,27 +291,50 @@ if __name__ == "__main__":
         tracks_to_remove_uris = playlist_uris - liked_uris
 
         # Create a combined lookup for logging track details
-        # Liked details overwrite playlist details for tracks present in both (ensures latest metadata if liked/unliked)
         all_track_details = {**playlist_details, **liked_details}
 
         logging.info(f"Tracks to add: {len(tracks_to_add_uris)}")
         logging.info(f"Tracks to remove: {len(tracks_to_remove_uris)}")
 
-        # Perform updates, passing the details lookup for logging
-        add_tracks_to_playlist(sp, TARGET_PLAYLIST_ID, tracks_to_add_uris, all_track_details)
-        remove_tracks_from_playlist(sp, TARGET_PLAYLIST_ID, tracks_to_remove_uris, all_track_details)
+        # --- Perform updates ---
+        # Check if there are actual changes before calling API modify functions
+        if tracks_to_add_uris:
+            add_tracks_to_playlist(sp, TARGET_PLAYLIST_ID, tracks_to_add_uris, all_track_details)
+        else:
+             logging.info("No tracks to add.")
+
+        if tracks_to_remove_uris:
+             remove_tracks_from_playlist(sp, TARGET_PLAYLIST_ID, tracks_to_remove_uris, all_track_details)
+        else:
+             logging.info("No tracks to remove.")
+        # --- End Perform updates ---
+
+
+        # --- Send Email Notification (if configured) ---
+        if email_configured:
+            # Prepare email content regardless of changes
+            email_subject = f"Spotify Sync Status - {datetime.date.today()}" # Changed subject slightly
+            email_body = format_email_body(tracks_to_add_uris, tracks_to_remove_uris, all_track_details)
+
+            # Add a top line indicating status explicitly
+            if not tracks_to_add_uris and not tracks_to_remove_uris:
+                 email_body = "Spotify Sync Ran: No changes detected.\n\n" + email_body
+                 logging.info("No changes detected. Preparing confirmation email.")
+            else:
+                 email_body = "Spotify Sync Ran: Changes detected.\n\n" + email_body
+                 logging.info("Changes detected, preparing results email.")
+
+            # Send the email
+            send_gmail(email_subject, email_body, sender_email, sender_password, recipient_email)
+        # --- End Send Email Notification ---
 
         logging.info("Sync process completed.")
 
     except spotipy.SpotifyException as e:
-         # Catch specific Spotipy exceptions for better auth/API error handling
          logging.error(f"Spotify API error: {e}")
-         # Example: Check for auth errors
          if e.http_status == 401 or e.http_status == 403:
               logging.error("Authentication error. Check credentials, scope, or try re-authenticating interactively to refresh the cache.")
-         # Consider exiting differently based on error type if needed
-         exit(1) # Exit with error code
+         exit(1)
     except Exception as e:
-        # Catch any other unexpected errors
         logging.exception(f"An unexpected error occurred during the sync process: {e}")
-        exit(1) # Exit with error code
+        exit(1)        
