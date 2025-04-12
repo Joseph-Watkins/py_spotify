@@ -1,3 +1,5 @@
+""" Sync from liked tracks to a playlist of liked tracks (which can be shared, unlike liked tracks"""
+
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 import os
