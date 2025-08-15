@@ -20,7 +20,7 @@ TARGET_PLAYLIST_ID = '1EFdxSWFTyTHRx6DQsTj7b'
 
 # !! Replace with your Spotify Username if needed for scope, otherwise leave None !!
 # Usually not strictly required if using SpotifyOAuth correctly, but good to have if issues arise.
-USERNAME = 'eaar6a6x5vphvycqt28u65yhw'
+USERNAME = os.environ['SPOTIPY_USERNAME']
 
 # Permissions needed: Read Liked Songs, Modify target playlist (public/private)
 SCOPE = 'user-library-read playlist-modify-public playlist-modify-private'
