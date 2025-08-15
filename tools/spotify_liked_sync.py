@@ -282,53 +282,62 @@ if __name__ == "__main__":
 
         # Get current state with details
         liked_details = get_liked_track_details(sp)
-        playlist_details = get_playlist_track_details(sp, TARGET_PLAYLIST_ID)
+        if liked_details:
+            playlist_details = get_playlist_track_details(sp, TARGET_PLAYLIST_ID)
 
-        # Create sets of URIs for comparison
-        liked_uris = set(liked_details.keys())
-        playlist_uris = set(playlist_details.keys())
+            # Create sets of URIs for comparison
+            liked_uris = set(liked_details.keys())
+            playlist_uris = set(playlist_details.keys())
 
-        # Calculate differences
-        tracks_to_add_uris = liked_uris - playlist_uris
-        tracks_to_remove_uris = playlist_uris - liked_uris
+            # Calculate differences
+            tracks_to_add_uris = liked_uris - playlist_uris
+            tracks_to_remove_uris = playlist_uris - liked_uris
 
-        # Create a combined lookup for logging track details
-        all_track_details = {**playlist_details, **liked_details}
+            # Create a combined lookup for logging track details
+            all_track_details = {**playlist_details, **liked_details}
 
-        logging.info(f"Tracks to add: {len(tracks_to_add_uris)}")
-        logging.info(f"Tracks to remove: {len(tracks_to_remove_uris)}")
+            logging.info(f"Tracks to add: {len(tracks_to_add_uris)}")
+            logging.info(f"Tracks to remove: {len(tracks_to_remove_uris)}")
 
-        # --- Perform updates ---
-        # Check if there are actual changes before calling API modify functions
-        if tracks_to_add_uris:
-            add_tracks_to_playlist(sp, TARGET_PLAYLIST_ID, tracks_to_add_uris, all_track_details)
-        else:
-             logging.info("No tracks to add.")
-
-        if tracks_to_remove_uris:
-             remove_tracks_from_playlist(sp, TARGET_PLAYLIST_ID, tracks_to_remove_uris, all_track_details)
-        else:
-             logging.info("No tracks to remove.")
-        # --- End Perform updates ---
-
-
-        # --- Send Email Notification (if configured) ---
-        if email_configured:
-            # Prepare email content regardless of changes
-            email_subject = f"Spotify Sync Status - {datetime.date.today()}" # Changed subject slightly
-            email_body = format_email_body(tracks_to_add_uris, tracks_to_remove_uris, all_track_details)
-
-            # Add a top line indicating status explicitly
-            if not tracks_to_add_uris and not tracks_to_remove_uris:
-                 email_body = "Spotify Sync Ran: No changes detected.\n\n" + email_body
-                 logging.info("No changes detected. Preparing confirmation email.")
+            # --- Perform updates ---
+            # Check if there are actual changes before calling API modify functions
+            if tracks_to_add_uris:
+                add_tracks_to_playlist(sp, TARGET_PLAYLIST_ID, tracks_to_add_uris, all_track_details)
             else:
-                 email_body = "Spotify Sync Ran: Changes detected.\n\n" + email_body
-                 logging.info("Changes detected, preparing results email.")
+                 logging.info("No tracks to add.")
 
-            # Send the email
-            send_gmail(email_subject, email_body, sender_email, sender_password, recipient_email)
-        # --- End Send Email Notification ---
+            if tracks_to_remove_uris:
+                 remove_tracks_from_playlist(sp, TARGET_PLAYLIST_ID, tracks_to_remove_uris, all_track_details)
+            else:
+                 logging.info("No tracks to remove.")
+            # --- End Perform updates ---
+
+
+            # --- Send Email Notification (if configured) ---
+            if email_configured:
+                # Prepare email content regardless of changes
+                email_subject = f"Spotify Sync Status - {datetime.date.today()}" # Changed subject slightly
+                email_body = format_email_body(tracks_to_add_uris, tracks_to_remove_uris, all_track_details)
+
+                # Add a top line indicating status explicitly
+                if not tracks_to_add_uris and not tracks_to_remove_uris:
+                     email_body = "Spotify Sync Ran: No changes detected.\n\n" + email_body
+                     logging.info("No changes detected. Preparing confirmation email.")
+                else:
+                     email_body = "Spotify Sync Ran: Changes detected.\n\n" + email_body
+                     logging.info("Changes detected, preparing results email.")
+
+                # Send the email
+                send_gmail(email_subject, email_body, sender_email, sender_password, recipient_email)
+        
+        else:
+            if email_configured:
+                # Prepare email content regardless of changes
+                email_subject = f"Spotify Sync Status - ERROR! - {datetime.date.today()}" # Changed subject slightly
+                email_body = "No tracks found to sync - ERROR - check logs!"
+                # Send the email
+                send_gmail(email_subject, email_body, sender_email, sender_password, recipient_email)
+
 
         logging.info("Sync process completed.")
 
