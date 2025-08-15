@@ -26,6 +26,14 @@ class Mp3Utils(Utils):
             
         return mp3_data
 
+    def print_mp3_data_per_dir(self, directory, recurse=0):
+        """print all mp3 data for a given directory"""
+        
+        mp3_data = self.get_mp3_data_per_dir(directory, recurse)
+        for record in mp3_data:
+            print(f"{record['file']},{record['duration']}")
+
+
 
     def list_mp3_files(self, directory, recurse=0):
         """return all mp3 files, as list of tuples of (filename,directory)"""
