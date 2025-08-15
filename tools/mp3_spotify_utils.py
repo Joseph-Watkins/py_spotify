@@ -160,11 +160,10 @@ class MP3SpotifyUtils(Utils):
             uri = track['track']['uri']
             print(f"{artist}~{track_name}~{duration}~{uri}")
             
-    def get_liked_tracks(self): 
+    def get_liked_tracks(self, filepath=None, limit=50):
         """ get all liked tracks"""
 
         offset = 0
-        limit = 50  # Adjust the limit based on your needs
 
         all_tracks = []
         while True:
@@ -177,7 +176,7 @@ class MP3SpotifyUtils(Utils):
             offset += limit
             time.sleep(0.1)
 
-        print("artist~track~duration(s)~uri")
+        output_lines = ["artist~track~duration(s)~uri"]
         for item in all_tracks:
             track = item['track']
             artist = track['artists'][0]['name']
@@ -185,7 +184,15 @@ class MP3SpotifyUtils(Utils):
             duration = int(track['duration_ms']/1000)
             uri = track['uri']
             
-            print(f"{artist}~{track_name}~{duration}~{uri}")
+            output_lines.append(f"{artist}~{track_name}~{duration}~{uri}")
+            
+        if filepath:
+            with open(filepath, 'w', encoding='utf-8') as f:
+                f.write("\n".join(output_lines))
+        else:
+            for line in output_lines:
+                print(line)
+        
 
     def add_to_playlist(self, playlist_id, track_id):
         """ add track to playlist"""
